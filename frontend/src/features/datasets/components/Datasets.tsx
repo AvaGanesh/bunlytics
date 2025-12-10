@@ -1,29 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Upload, FileText, Database } from "lucide-react";
-import { datasetsService } from "../services/datasetsService";
+import { useDatasets, useUploadDataset } from "../services/useDatasets";
 
 export default function Datasets() {
-  const [datasets, setDatasets] = useState<any[]>([]);
+  const { data: datasets = [], isLoading } = useDatasets();
+  const uploadDataset = useUploadDataset();
   const [uploading, setUploading] = useState(false);
-
-  useEffect(() => {
-    loadDatasets();
-  }, []);
-
-  async function loadDatasets() {
-    try {
-      const data = await datasetsService.fetchAll();
-      if (Array.isArray(data)) {
-        setDatasets(data);
-      } else {
-        console.error("Failed to fetch datasets:", data);
-        setDatasets([]);
-      }
-    } catch (error) {
-       console.error("Error loading datasets:", error);
-       setDatasets([]);
-    }
-  }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -31,8 +13,7 @@ export default function Datasets() {
 
     setUploading(true);
     try {
-      await datasetsService.upload(file);
-      await loadDatasets();
+      await uploadDataset.mutateAsync(file);
     } catch (err) {
       alert("Upload failed");
     } finally {

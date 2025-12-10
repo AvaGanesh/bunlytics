@@ -16,7 +16,7 @@ export async function handleQuery(req: Request) {
     const now = new Date().toISOString();
 
     try {
-      const rows = db.query(sql).all();
+      const rows = db.query(sql).all() as any[];
       const endTime = performance.now();
       const duration = Math.round(endTime - startTime);
       
@@ -61,5 +61,43 @@ export async function handleQuery(req: Request) {
       status: 500, 
       headers: { "Content-Type": "application/json" } 
     });
+  }
+}
+
+export async function handleGetHistory(req: Request) {
+  try {
+    const user = requireAuth(req);
+    
+    // Get limit from query params, default 50
+    const url = new URL(req.url);
+    const limit = Math.min(parseInt(url.searchParams.get("limit") || "50"), 100);
+
+    const rows = db.query(`
+      SELECT id, sql, status, duration_ms, row_count, created_at, error_message
+      FROM queries 
+      WHERE user_id = ? 
+      ORDER BY created_at DESC 
+      LIMIT ?
+    `).all(user.userId, limit);
+
+    const history = rows.map((row: any) => ({
+      id: row.id,
+      sql: row.sql,
+      timestamp: row.created_at, // Will be string, frontend converts to Date
+      executionTime: row.duration_ms,
+      rowCount: row.row_count,
+      success: row.status === 'success',
+      error: row.error_message
+    }));
+
+    return new Response(JSON.stringify(history), {
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error: any) {
+    console.error("History Error:", error);
+    if (error.message === "Unauthorized") {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
+    return new Response(JSON.stringify({ error: "Failed to fetch history" }), { status: 500 });
   }
 }

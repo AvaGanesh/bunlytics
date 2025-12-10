@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Play, Loader2, Columns2, Rows2, History, Clock } from "lucide-react";
 import { sqlService } from "../services/sqlService";
-import { datasetsService } from "../../datasets/services/datasetsService";
+import { useDatasets } from "../../datasets/services/useDatasets";
 
 type QueryHistoryItem = {
   id: string;
@@ -18,7 +18,7 @@ export default function SQLConsole() {
   const [result, setResult] = useState<{ columns: string[]; rows: any[][] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [datasets, setDatasets] = useState<any[]>([]);
+  const { data: datasets = [] } = useDatasets(); // Look ma, caching!
   const [executionTime, setExecutionTime] = useState<number | null>(null);
   const [layout, setLayout] = useState<"horizontal" | "vertical">("horizontal");
   const [splitPosition, setSplitPosition] = useState(50); // percentage
@@ -28,18 +28,22 @@ export default function SQLConsole() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    loadDatasets();
+    loadHistory();
   }, []);
 
-  async function loadDatasets() {
+  async function loadHistory() {
     try {
-        const data = await datasetsService.fetchAll();
-        setDatasets(Array.isArray(data) ? data : []);
+      const history = await sqlService.getHistory();
+      if (Array.isArray(history)) {
+        setQueryHistory(history.map(item => ({
+          ...item,
+          timestamp: new Date(item.timestamp)
+        })));
+      }
     } catch (e) {
-        console.error(e);
+      console.error("Failed to load history:", e);
     }
   }
-
   async function handleRun() {
     setLoading(true);
     setError(null);

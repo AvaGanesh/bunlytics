@@ -1,6 +1,6 @@
 import { serve } from "bun";
 import { handleDatasets, handleDatasetUpload, handleGetSchema } from "./api/datasets";
-import { handleQuery } from "./api/query";
+import { handleQuery, handleGetHistory } from "./api/query";
 import { handleDashboards, handleDashboardPanels, handleRunDashboard } from "./api/dashboards";
 import { handleSignup, handleLogin, handleMe } from "./api/auth";
 
@@ -39,8 +39,11 @@ serve({
         }
 
         // Query
-        if (path === "/api/query" && method === "POST") {
-          return handleQuery(req);
+        if (path === "/api/query") {
+           if (method === "POST") return handleQuery(req);
+        }
+        if (path === "/api/query/history" && method === "GET") {
+           return handleGetHistory(req);
         }
 
         // Dashboards
