@@ -32,7 +32,12 @@ export async function handleQuery(req: Request) {
         [queryId, user.userId, datasetId || null, sql.trim(), "success", duration, rows.length, now]
       );
 
-      return new Response(JSON.stringify({ columns, rows: formattedRows }), {
+      return new Response(JSON.stringify({ 
+        columns, 
+        rows: formattedRows,
+        queryId,
+        timestamp: now
+      }), {
         headers: { "Content-Type": "application/json" },
       });
     } catch (e: any) {

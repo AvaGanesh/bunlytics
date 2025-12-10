@@ -2,11 +2,12 @@ import { useState, useRef, useEffect } from "react";
 import { Play, Loader2, Columns2, Rows2, History, Clock } from "lucide-react";
 import { sqlService } from "../services/sqlService";
 import { useDatasets } from "../../datasets/services/useDatasets";
+import { useQueryHistory, useRunQuery } from "../services/useSql";
 
 type QueryHistoryItem = {
   id: string;
   sql: string;
-  timestamp: Date;
+  timestamp: string; // Changed to string as it comes from API
   executionTime: number;
   rowCount: number;
   success: boolean;
@@ -18,32 +19,28 @@ export default function SQLConsole() {
   const [result, setResult] = useState<{ columns: string[]; rows: any[][] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { data: datasets = [] } = useDatasets(); // Look ma, caching!
+  const { data: datasets = [] } = useDatasets(); 
+  const { data: history = [] } = useQueryHistory(); // Use hook
+  const runQueryMutation = useRunQuery(); 
+
   const [executionTime, setExecutionTime] = useState<number | null>(null);
   const [layout, setLayout] = useState<"horizontal" | "vertical">("horizontal");
   const [splitPosition, setSplitPosition] = useState(50); // percentage
   const [isDragging, setIsDragging] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [queryHistory, setQueryHistory] = useState<QueryHistoryItem[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
-
+  
+  // Local state for immediate feedback, synced with server history
   useEffect(() => {
-    loadHistory();
-  }, []);
-
-  async function loadHistory() {
-    try {
-      const history = await sqlService.getHistory();
-      if (Array.isArray(history)) {
-        setQueryHistory(history.map(item => ({
-          ...item,
-          timestamp: new Date(item.timestamp)
-        })));
-      }
-    } catch (e) {
-      console.error("Failed to load history:", e);
+    if (Array.isArray(history)) {
+       // Transform if needed, but our hook should handle it. 
+       // For now assuming history matches component needs or we map it here.
+       // actually the hook returns raw data, we need to map timestamps strings to Dates if needed
+       // or we can just handle strings in the UI. 
+       // Let's assume we map it in the UI or here.
     }
-  }
+  }, [history]);
+
   async function handleRun() {
     setLoading(true);
     setError(null);
@@ -52,7 +49,7 @@ export default function SQLConsole() {
     const startTime = performance.now();
     
     try {
-      const data = await sqlService.runQuery(sql);
+      const data = await runQueryMutation.mutateAsync(sql); // Use mutation
       const endTime = performance.now();
       const execTime = endTime - startTime;
       setExecutionTime(execTime);
@@ -61,31 +58,11 @@ export default function SQLConsole() {
         throw new Error(data.error);
       } else {
         setResult(data);
-        
-        // Add to history
-        setQueryHistory(prev => [{
-            id: crypto.randomUUID(),
-            sql: sql.trim(),
-            timestamp: new Date(),
-            executionTime: execTime,
-            rowCount: data.rows ? data.rows.length : 0,
-            success: true
-        }, ...prev].slice(0, 50));
+        // History update handled by react-query invalidation
       }
     } catch (err: any) {
       const errorMsg = err.response?.data?.error || err.message || "Query failed";
       setError(errorMsg);
-      
-      // Add failed query to history
-      setQueryHistory(prev => [{
-        id: crypto.randomUUID(),
-        sql: sql.trim(),
-        timestamp: new Date(),
-        executionTime: performance.now() - startTime,
-        rowCount: 0,
-        success: false,
-        error: errorMsg
-      }, ...prev].slice(0, 50));
     } finally {
       setLoading(false);
     }
@@ -135,9 +112,9 @@ export default function SQLConsole() {
             title="Query History"
           >
             <History size={18} />
-            {queryHistory.length > 0 && (
+            {history.length > 0 && (
               <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {queryHistory.length}
+                {history.length}
               </span>
             )}
           </button>
@@ -165,15 +142,15 @@ export default function SQLConsole() {
           <div className="w-80 bg-gray-50 border-r border-gray-200 overflow-y-auto">
             <div className="p-4 border-b border-gray-200 bg-white">
               <h2 className="font-semibold text-sm text-gray-700">Query History</h2>
-              <p className="text-xs text-gray-500 mt-1">{queryHistory.length} queries</p>
+              <p className="text-xs text-gray-500 mt-1">{history.length} queries</p>
             </div>
             <div className="p-2 space-y-2">
-              {queryHistory.length === 0 ? (
+              {history.length === 0 ? (
                 <div className="text-center py-8 text-gray-400 text-sm">
                   No queries yet
                 </div>
               ) : (
-                queryHistory.map((item) => (
+                history.map((item: any) => (
                   <button
                     key={item.id}
                     onClick={() => setSql(item.sql)}
@@ -196,7 +173,7 @@ export default function SQLConsole() {
                     <div className="flex items-center gap-3 text-xs text-gray-500">
                       <span className="flex items-center gap-1">
                         <Clock size={12} />
-                        {item.timestamp.toLocaleTimeString()}
+                        {new Date(item.timestamp).toLocaleTimeString()}
                       </span>
                       <span className="font-mono">
                         {item.executionTime < 1000 
