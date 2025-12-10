@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Play, Loader2, Columns2, Rows2, History, Clock } from "lucide-react";
-import { runQuery } from "../lib/api";
+import { sqlService } from "../services/sqlService";
+import { datasetsService } from "../../datasets/services/datasetsService";
 
 type QueryHistoryItem = {
   id: string;
@@ -13,10 +14,11 @@ type QueryHistoryItem = {
 };
 
 export default function SQLConsole() {
-  const [sql, setSql] = useState("SELECT * FROM datasets");
+  const [sql, setSql] = useState("SELECT * FROM datasets LIMIT 10");
   const [result, setResult] = useState<{ columns: string[]; rows: any[][] } | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [datasets, setDatasets] = useState<any[]>([]);
   const [executionTime, setExecutionTime] = useState<number | null>(null);
   const [layout, setLayout] = useState<"horizontal" | "vertical">("horizontal");
   const [splitPosition, setSplitPosition] = useState(50); // percentage
@@ -25,33 +27,50 @@ export default function SQLConsole() {
   const [queryHistory, setQueryHistory] = useState<QueryHistoryItem[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    loadDatasets();
+  }, []);
+
+  async function loadDatasets() {
+    try {
+        const data = await datasetsService.fetchAll();
+        setDatasets(Array.isArray(data) ? data : []);
+    } catch (e) {
+        console.error(e);
+    }
+  }
+
   async function handleRun() {
     setLoading(true);
     setError(null);
+    setResult(null);
     setExecutionTime(null);
     const startTime = performance.now();
     
     try {
-      const data = await runQuery(sql);
+      const data = await sqlService.runQuery(sql);
       const endTime = performance.now();
       const execTime = endTime - startTime;
       setExecutionTime(execTime);
       
-      if (data.error) throw new Error(data.error);
-      setResult(data);
-      
-      // Add to history
-      setQueryHistory(prev => [{
-        id: crypto.randomUUID(),
-        sql: sql.trim(),
-        timestamp: new Date(),
-        executionTime: execTime,
-        rowCount: data.rows.length,
-        success: true
-      }, ...prev].slice(0, 50)); // Keep last 50 queries
-      
+      if (data.error) {
+        throw new Error(data.error);
+      } else {
+        setResult(data);
+        
+        // Add to history
+        setQueryHistory(prev => [{
+            id: crypto.randomUUID(),
+            sql: sql.trim(),
+            timestamp: new Date(),
+            executionTime: execTime,
+            rowCount: data.rows ? data.rows.length : 0,
+            success: true
+        }, ...prev].slice(0, 50));
+      }
     } catch (err: any) {
-      setError(err.message);
+      const errorMsg = err.response?.data?.error || err.message || "Query failed";
+      setError(errorMsg);
       
       // Add failed query to history
       setQueryHistory(prev => [{
@@ -61,7 +80,7 @@ export default function SQLConsole() {
         executionTime: performance.now() - startTime,
         rowCount: 0,
         success: false,
-        error: err.message
+        error: errorMsg
       }, ...prev].slice(0, 50));
     } finally {
       setLoading(false);

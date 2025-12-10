@@ -1,4 +1,4 @@
-import { verifyToken, type JWTPayload } from "../lib/auth";
+import { verifyToken, type JWTPayload } from "./lib/auth";
 
 export interface AuthenticatedRequest extends Request {
   user?: JWTPayload;

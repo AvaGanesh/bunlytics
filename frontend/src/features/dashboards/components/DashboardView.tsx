@@ -1,26 +1,64 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Plus, RefreshCw, BarChart3, Table as TableIcon, Hash } from "lucide-react";
-import { runDashboard, addDashboardPanel } from "../lib/api";
+import { Plus, Play, Save, RefreshCw, BarChart3, Table as TableIcon, Hash } from "lucide-react";
+import { dashboardsService } from "../services/dashboardsService";
 
 export default function DashboardView() {
   const { id } = useParams();
-  const [dashboard, setDashboard] = useState<any>(null);
+  const [panels, setPanels] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAddPanel, setShowAddPanel] = useState(false);
+  const [results, setResults] = useState<Record<string, any>>({});
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
-    loadDashboard();
+    if (id) {
+      loadPanels();
+    }
   }, [id]);
 
-  async function loadDashboard() {
-    if (!id) return;
-    setLoading(true);
+  async function loadPanels() {
     try {
-      const data = await runDashboard(id);
-      setDashboard(data);
+      const data = await dashboardsService.fetchPanels(id!);
+      setPanels(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleRunDashboard() {
+    try {
+      const data = await dashboardsService.run(id!);
+      if (data.panels) {
+        const resultsMap: Record<string, any> = {};
+        data.panels.forEach((p: any) => {
+           resultsMap[p.id] = p;
+        });
+        setResults(resultsMap);
+      }
+    } catch (e) {
+      alert("Failed to run dashboard");
+    }
+  }
+
+  async function handleAddPanel() {
+    const title = prompt("Panel Title");
+    if (!title) return;
+    
+    const sql = prompt("SQL Query", "SELECT * FROM queries LIMIT 5");
+    if (!sql) return;
+
+    try {
+      await dashboardsService.addPanel(id!, {
+         title,
+         panel_type: "table",
+         sql,
+         options: {}
+      });
+      await loadPanels();
+    } catch (e) {
+      alert("Failed to add panel");
     }
   }
 
@@ -35,13 +73,14 @@ export default function DashboardView() {
         
         <div className="flex gap-2">
             <button 
-                onClick={loadDashboard}
-                className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
+                onClick={handleRunDashboard}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-                <RefreshCw size={20} />
+                <Play size={18} />
+                <span>Run Dashboard</span>
             </button>
             <button 
-                onClick={() => setShowAddPanel(true)}
+                onClick={handleAddPanel}
                 className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
             >
                 <Plus size={18} />

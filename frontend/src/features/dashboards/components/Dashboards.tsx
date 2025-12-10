@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Plus, Layout } from "lucide-react";
 import { Link } from "react-router-dom";
-import { fetchDashboards, createDashboard } from "../lib/api";
+import { LayoutDashboard, Plus } from "lucide-react";
+import { dashboardsService } from "../services/dashboardsService";
 
 export default function Dashboards() {
   const [dashboards, setDashboards] = useState<any[]>([]);
@@ -12,8 +12,12 @@ export default function Dashboards() {
   }, []);
 
   async function loadDashboards() {
-    const data = await fetchDashboards();
-    setDashboards(data);
+    try {
+      const data = await dashboardsService.fetchAll();
+      setDashboards(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   async function handleCreate() {
@@ -22,8 +26,10 @@ export default function Dashboards() {
     
     setIsCreating(true);
     try {
-        await createDashboard(name);
+        await dashboardsService.create(name);
         await loadDashboards();
+    } catch (err) {
+        alert("Failed to create dashboard");
     } finally {
         setIsCreating(false);
     }
@@ -53,7 +59,7 @@ export default function Dashboards() {
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm group-hover:shadow-md transition-all h-full">
               <div className="flex items-start justify-between mb-4">
                 <div className="p-3 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-100 transition-colors">
-                  <Layout size={24} />
+                  <LayoutDashboard size={24} />
                 </div>
               </div>
               
